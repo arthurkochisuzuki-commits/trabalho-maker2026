@@ -1020,6 +1020,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBackHome = document.getElementById('btn-back-home');
   const brandLink = document.getElementById('brand-link');
   const navSessionBadge = document.getElementById('nav-session-badge');
+  const startScreen = document.getElementById('start-screen');
+  const appContainer = document.querySelector('.app-container');
+  const btnEnterApp = document.getElementById('btn-enter-app');
+
+  if (btnEnterApp && startScreen && appContainer) {
+    btnEnterApp.addEventListener('click', () => {
+      startScreen.hidden = true;
+      appContainer.hidden = false;
+      if (window.lucide) lucide.createIcons();
+    });
+  }
 
   // Triagem e Paciente
   const inputPatientName = document.getElementById('input-patient-name');

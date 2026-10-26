@@ -22,7 +22,68 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-container">
+  <main id="start-screen" class="app-container start-screen" aria-labelledby="start-title">
+    <header class="navbar">
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="activity"></i></div>
+        <div class="brand-text">
+          <h1>BioPhysio <span class="brand-highlight">MedTech</span></h1>
+          <p>Unidade Hospitalar de Reabilitação & Biomecânica Clínica</p>
+        </div>
+      </div>
+      <div class="navbar-actions">
+        <div class="status-badge">
+          <span class="pulse-dot green"></span>
+          <span>Sistema pronto para iniciar</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="hospital-hero-banner start-hero">
+      <div class="hero-left">
+        <div class="hospital-subtag">
+          <span class="hospital-dot"></span>
+          HOSPITAL UNIVERSITÁRIO &bull; DEPARTAMENTO DE FISIOTERAPIA
+        </div>
+        <h2 class="hero-title" id="start-title">Portal de Atendimento e Telemetria Motora</h2>
+        <p class="hero-description">Acesse o ambiente de avaliação biomecânica e acompanhamento de sessões de reabilitação.</p>
+        <button id="btn-enter-app" class="btn btn-primary btn-lg start-cta" type="button">
+          <span>Entrar no sistema</span>
+          <i data-lucide="arrow-right"></i>
+        </button>
+      </div>
+
+      <div class="hero-right">
+        <div class="station-card start-station-card">
+          <div class="station-header">
+            <i data-lucide="shield-check"></i>
+            <span>ESTAÇÃO CLÍNICA #01</span>
+          </div>
+          <div class="station-body">
+            <div class="station-meta-row">
+              <span class="meta-label">Protocolos ativos:</span>
+              <span class="meta-value text-accent">4 módulos</span>
+            </div>
+            <div class="station-meta-row">
+              <span class="meta-label">Captação:</span>
+              <span class="meta-value">Câmera, vídeo e simulador</span>
+            </div>
+            <div class="station-meta-row">
+              <span class="meta-label">Telemetria:</span>
+              <span class="meta-value text-success">Pronta</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="start-footer">
+      <span>BioPhysio MedTech</span>
+      <span>BIOMECÂNICA CLÍNICA &bull; REABILITAÇÃO FUNCIONAL</span>
+    </footer>
+  </main>
+
+  <div class="app-container" hidden>
     
     <!-- Top Hospital Navigation Bar -->
     <header class="navbar">

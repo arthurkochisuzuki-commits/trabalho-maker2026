@@ -95,6 +95,126 @@ body {
   gap: 1.25rem;
 }
 
+[hidden] {
+  display: none !important;
+}
+
+/* Start screen reuses the clinical dashboard visual system. */
+.start-screen {
+  max-width: 1600px;
+  min-height: 100vh;
+  padding: 1rem 1.5rem;
+}
+
+.start-hero {
+  flex: 1;
+  align-self: stretch;
+  min-height: 480px;
+  padding: clamp(1.5rem, 4vw, 3.5rem);
+  animation: start-enter 400ms ease-out both;
+}
+
+.start-hero .hero-left {
+  max-width: 680px;
+}
+
+.start-hero .hero-title {
+  max-width: 620px;
+  font-size: 2.25rem;
+  letter-spacing: 0;
+}
+
+.start-hero .hero-description {
+  max-width: 540px;
+}
+
+.start-station-card {
+  min-width: 300px;
+  padding: 1.25rem;
+}
+
+.start-station-card .station-meta-row {
+  gap: 1rem;
+}
+
+.start-station-card .meta-value {
+  text-align: right;
+}
+
+.start-cta {
+  margin-top: 1.4rem;
+}
+
+.start-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+@keyframes start-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .start-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .start-hero .hero-left {
+    max-width: none;
+  }
+
+  .start-hero .hero-title {
+    font-size: 1.85rem;
+  }
+
+  .start-hero .hero-right,
+  .start-station-card {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .start-screen {
+    padding: 0.75rem;
+  }
+
+  .start-screen .navbar {
+    padding: 0.75rem 1rem;
+  }
+
+  .start-screen .brand-text p {
+    max-width: 220px;
+  }
+
+  .start-hero {
+    padding: 1.25rem;
+  }
+
+  .start-hero .hero-title {
+    font-size: 1.65rem;
+  }
+
+  .start-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start-hero { animation: none; }
+}
+
 /* ==========================================================================
    Top Hospital Navigation Bar
    ========================================================================== */
