@@ -897,10 +897,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      updateStatusText("Abrindo seletor de dispositivos Bluetooth...", "amber");
       try {
         await bleSensor.connect();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        updateStatusText(
+          err && err.name === "NotFoundError"
+            ? "Seletor fechado ou nenhum sensor selecionado. Se não abriu, verifique o suporte/adaptador BLE."
+            : "Não foi possível abrir o seletor Bluetooth.",
+          "red"
+        );
         if (!err || err.name !== "NotFoundError") {
           alert(`Não foi possível conectar ao sensor Bluetooth: ${message}`);
         }

@@ -135,12 +135,15 @@ class LeanstarBLEManager {
    * Solicita pareamento com o microcontrolador via navegador (Web Bluetooth API)
    */
   async connect() {
-    if (!navigator.bluetooth) {
-      throw new Error("Bluetooth BLE pela página não é suportado neste navegador. Use Chrome ou Edge em um computador compatível; Safari no iPhone não oferece Web Bluetooth.");
+     if (window.location.protocol === "file:") {
+       throw new Error("O seletor Bluetooth não abre quando o site é aberto como arquivo. Inicie o servidor e acesse http://localhost:8080.");
     }
     if (!window.isSecureContext) {
-      throw new Error("O navegador bloqueou o Bluetooth nesta página. Abra http://localhost:8080 ou publique o site em HTTPS; não abra o arquivo index.html diretamente.");
+       throw new Error("O Bluetooth foi bloqueado por uma conexão não segura. Use http://localhost:8080 ou publique o site em HTTPS.");
     }
+     if (!navigator.bluetooth) {
+       throw new Error("Este navegador não oferece Web Bluetooth. Use Chrome ou Edge com Bluetooth BLE; no iPhone, páginas do Safari não podem parear com o HM-06.");
+     }
 
     try {
       console.log("[WEB BLE] Procurando sensor HM-06...");
