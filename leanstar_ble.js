@@ -117,17 +117,18 @@ class LeanstarAngleConverter {
 // ============================================================================
 
 class LeanstarBLEManager {
-  constructor(angleConverter, onDataCallback) {
-    this.SERVICE_UUID        = "19b10000-e8f2-537e-4f6c-d104768a1214";
-    this.CHARACTERISTIC_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+  constructor(onDataCallback, onStatusCallback) {
+    this.SERVICE_UUID        = "0000ffe0-0000-1000-8000-00805f9b34fb";
+    this.CHARACTERISTIC_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb";
 
     this.device = null;
     this.server = null;
     this.characteristic = null;
     this.isConnected = false;
 
-    this.converter = angleConverter || new LeanstarAngleConverter();
     this.onDataCallback = onDataCallback || (() => {});
+    this.onStatusCallback = onStatusCallback || (() => {});
+    this.decoder = new TextDecoder('utf-8');
   }
 
   /**
@@ -135,32 +136,29 @@ class LeanstarBLEManager {
    */
   async connect() {
     if (!navigator.bluetooth) {
-      throw new Error("Web Bluetooth API não suportada neste navegador. Utilize Google Chrome ou Edge.");
+      throw new Error("Bluetooth BLE pela página não é suportado neste navegador. Use Chrome ou Edge em um computador compatível; Safari no iPhone não oferece Web Bluetooth.");
+    }
+    if (!window.isSecureContext) {
+      throw new Error("O navegador bloqueou o Bluetooth nesta página. Abra http://localhost:8080 ou publique o site em HTTPS; não abra o arquivo index.html diretamente.");
     }
 
     try {
-      console.log("[WEB BLE] Buscando sensor BioPhysio-Leanstar...");
+      console.log("[WEB BLE] Procurando sensor HM-06...");
       
-      // 1. Abre o seletor nativo do navegador filtrando pelo Service UUID
+      // HM-06 BLE UART modules commonly expose FFE0/FFE1.
       this.device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { namePrefix: "BioPhysio" },
-          { services: [this.SERVICE_UUID] }
-        ],
+        acceptAllDevices: true,
         optionalServices: [this.SERVICE_UUID]
       });
 
       this.device.addEventListener('gattserverdisconnected', () => this.handleDisconnection());
 
-      // 2. Conecta ao servidor GATT do microcontrolador
-      console.log(`[WEB BLE] Conectando ao GATT Server de ${this.device.name}...`);
+      console.log(`[WEB BLE] Conectando ao GATT Server de ${this.device.name || "sensor selecionado"}...`);
       this.server = await this.device.gatt.connect();
 
-      // 3. Obtém o Serviço Primário e a Característica de Notificação
       const service = await this.server.getPrimaryService(this.SERVICE_UUID);
       this.characteristic = await service.getCharacteristic(this.CHARACTERISTIC_UUID);
 
-      // 4. Assina (Subscribe) as notificações em tempo real da fita Leanstar
       await this.characteristic.startNotifications();
       this.characteristic.addEventListener(
         'characteristicvaluechanged',
@@ -168,64 +166,50 @@ class LeanstarBLEManager {
       );
 
       this.isConnected = true;
-      console.log("[WEB BLE] Pareado com sucesso! Recebendo stream de dados Leanstar...");
+      this.onStatusCallback(true, this.device.name || "HM-06");
+      console.log("[WEB BLE] Pareado com sucesso! Recebendo ângulos do sensor...");
       return true;
     } catch (error) {
       console.error("[WEB BLE] Erro ao conectar:", error);
+      this.isConnected = false;
+      if (this.device && this.device.gatt && this.device.gatt.connected) {
+        this.device.gatt.disconnect();
+      }
       throw error;
     }
   }
 
-  /**
-   * Callback disparado automaticamente a cada pacote BLE recebido do Arduino/ESP32
-   */
   handleCharacteristicNotification(event) {
     const dataView = event.target.value;
-    let rawAdc = 0;
-    let voltage = 0.0;
-    let resistanceOhms = 0.0;
+    const text = this.decoder.decode(dataView).trim();
+    const match = text.match(/[-+]?(?:\d+\.?\d*|\.\d+)/);
+    const angleDeg = match ? Number(match[0]) : NaN;
 
-    // Suporta tanto o Struct Binário de 12 bytes (Little-Endian) quanto String UTF-8
-    if (dataView.byteLength >= 12) {
-      rawAdc         = dataView.getUint16(0, true); // Bytes 0..1: uint16_t rawAdc
-      voltage        = dataView.getFloat32(4, true); // Bytes 4..7: float voltage
-      resistanceOhms = dataView.getFloat32(8, true); // Bytes 8..11: float resistanceOhms
-    } else {
-      // Fallback caso o firmware envie apenas a string ou uint16
-      const decoder = new TextDecoder('utf-8');
-      const textVal = parseFloat(decoder.decode(dataView));
-      rawAdc = isNaN(textVal) ? 0 : textVal;
-      voltage = (rawAdc * 3.3) / 4095.0;
-      resistanceOhms = voltage > 0.05 ? 47000.0 * ((3.3 / voltage) - 1.0) : 0;
+    if (!Number.isFinite(angleDeg) || angleDeg < 0 || angleDeg > 180) {
+      console.warn("[BLE STREAM] Leitura ignorada; esperava um ângulo em texto entre 0 e 180 graus:", text);
+      return;
     }
 
-    // Calcula o ângulo filtrado e calibrado
-    const angleDeg = this.converter.voltageToAngle(voltage);
-
-    // VERIFICAÇÃO DE SUCESSO: Exibe os valores brutos e processados no Console (F12)
-    console.log(
-      `[BLE STREAM] ADC Bruto: ${rawAdc} | Tensão: ${voltage.toFixed(3)}V | Resistência: ${Math.round(resistanceOhms)}Ω | Ângulo Suavizado: ${angleDeg.toFixed(1)}°`
-    );
-
-    // Envia os dados estruturados para atualizar a tela do paciente (HUD)
     this.onDataCallback({
       timestamp: Date.now(),
-      rawAdc,
-      voltage: parseFloat(voltage.toFixed(3)),
-      filteredVoltage: parseFloat(this.converter.lastFilteredVoltage.toFixed(3)),
-      resistanceOhms: Math.round(resistanceOhms),
-      angleDeg
+      angleDeg: parseFloat(angleDeg.toFixed(1)),
+      rawValue: text
     });
   }
 
   handleDisconnection() {
     this.isConnected = false;
-    console.warn("[WEB BLE] Dispositivo Leanstar desconectado.");
+    this.characteristic = null;
+    this.server = null;
+    this.onStatusCallback(false, this.device ? this.device.name || "HM-06" : "HM-06");
+    console.warn("[WEB BLE] Sensor Bluetooth desconectado.");
   }
 
   async disconnect() {
-    if (this.device && this.device.gatt.connected) {
+    if (this.device && this.device.gatt && this.device.gatt.connected) {
       this.device.gatt.disconnect();
+    } else {
+      this.handleDisconnection();
     }
   }
 }

@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoFileInput = document.getElementById('video-file-input');
 
   // Elementos do DOM - IoT & Câmera
-  const btnConnectArduino = document.getElementById('btn-connect-arduino');
+  const btnConnectSensor = document.getElementById('btn-connect-sensor');
   const cameraErrorBanner = document.getElementById('camera-error-banner');
   const cameraErrorMsg = document.getElementById('camera-error-msg');
   const btnRetryCamera = document.getElementById('btn-retry-camera');
@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastSpeechTime = 0;
   let currentJSONProtocol = "";
   let sessionLogs = [];
+  let sessionUsedBleSensor = false;
 
   // Estado do Motor MediaPipe Pose & Conexão de Mídia
   let poseEngine = null;
@@ -157,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function onPoseResults(results) {
-    if (!isRunning) return;
+    if (!isRunning || bleSensor.isConnected) return;
     resizeCanvas();
 
     const width = canvasElement.width;
@@ -763,6 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function updatePatientUI(data) {
     if (!data || !data.angulosAtuais) return;
+    const isSensorEvaluation = Boolean(data.sensorTelemetry);
 
     hudPhaseText.textContent = data.faseMovimento ? data.faseMovimento.toUpperCase() : "NEUTRO";
     hudKneeAngle.textContent = `${data.angulosAtuais.principalDeg.toFixed(0)}°`;
@@ -778,10 +780,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const msg = data.qualidadeExecucao.mensagemFeedback;
 
     patientFeedbackCard.className = `patient-feedback-card status-${status === 'EXCELENTE' ? 'good' : (status === 'ATENÇÃO' ? 'warning' : 'danger')}`;
-    feedbackTag.textContent = status === 'EXCELENTE' ? 'EXCELENTE POSTURA' : (status === 'ATENÇÃO' ? 'ATENÇÃO À POSTURA' : 'CORREÇÃO NECESSÁRIA');
+    feedbackTag.textContent = isSensorEvaluation
+      ? 'AVALIAÇÃO DE AMPLITUDE'
+      : status === 'EXCELENTE' ? 'EXCELENTE POSTURA' : (status === 'ATENÇÃO' ? 'ATENÇÃO À POSTURA' : 'CORREÇÃO NECESSÁRIA');
     feedbackMainMsg.textContent = msg;
 
-    if (status !== 'EXCELENTE') {
+    if (status !== 'EXCELENTE' && !isSensorEvaluation) {
       speakFeedback(msg);
       canvasWarningToast.classList.remove('hidden');
       canvasWarningMsg.textContent = msg;
@@ -801,7 +805,9 @@ document.addEventListener('DOMContentLoaded', () => {
     repCorrect.textContent = data.repeticoes.corretas;
     repFaults.textContent = data.repeticoes.comCompensacao;
 
-    const activeCam = sourceSelect.value === 'webcam' ? "Câmera BioPhysio IoT - Vista Frontal ao Vivo" : "Câmera BioPhysio IoT - Simulador Sintético";
+    const activeCam = isSensorEvaluation
+      ? "Sensor Bluetooth BLE HM-06"
+      : sourceSelect.value === 'webcam' ? "Câmera BioPhysio IoT - Vista Frontal ao Vivo" : "Câmera BioPhysio IoT - Simulador Sintético";
     currentJSONProtocol = analyzer.formatJSONProtocol(data, activeCam);
     jsonStreamOutput.textContent = currentJSONProtocol;
 
@@ -809,11 +815,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sessionLogs.length > 500) sessionLogs.shift();
   }
 
+  const bleSensor = new window.LeanstarBLEManager(
+    (reading) => {
+      sessionUsedBleSensor = true;
+      const data = analyzer.processSensorAngle(reading.angleDeg);
+      data.sensorTelemetry = reading;
+      updatePatientUI(data);
+    },
+    (connected, deviceName) => {
+      if (connected) sessionUsedBleSensor = true;
+      if (btnConnectSensor) {
+        btnConnectSensor.classList.toggle('btn-outline', !connected);
+        btnConnectSensor.classList.toggle('btn-primary', connected);
+        btnConnectSensor.innerHTML = '<i data-lucide="bluetooth"></i><span class="btn-text"></span>';
+        btnConnectSensor.querySelector('.btn-text').textContent = connected
+          ? `Desconectar ${deviceName}`
+          : "Conectar sensor BLE";
+        if (window.lucide) lucide.createIcons();
+      }
+      updateStatusText(
+        connected ? `Sensor BLE conectado: ${deviceName}` : "Sensor BLE desconectado",
+        connected ? "green" : "amber"
+      );
+    }
+  );
+
   /**
    * LOOP PRINCIPAL DE PROCESSAMENTO
    */
   async function mainLoop() {
     if (!isRunning) return;
+    if (bleSensor.isConnected) {
+      animationFrameId = requestAnimationFrame(mainLoop);
+      return;
+    }
 
     resizeCanvas();
     const useFilter = chkNoiseFilter.checked;
@@ -854,17 +889,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Conexão Arduino (IoT) via Web Serial
-  if (btnConnectArduino) {
-    btnConnectArduino.addEventListener('click', async () => {
+  // 2. Conexão do sensor por Bluetooth BLE
+  if (btnConnectSensor) {
+    btnConnectSensor.addEventListener('click', async () => {
+      if (bleSensor.isConnected) {
+        await bleSensor.disconnect();
+        return;
+      }
+
       try {
-        await analyzer.iotBridge.connect();
-        btnConnectArduino.classList.remove('btn-outline');
-        btnConnectArduino.classList.add('btn-primary');
-        btnConnectArduino.innerHTML = `<i data-lucide="cpu"></i> Arduino Conectado`;
-        if (window.lucide) lucide.createIcons();
+        await bleSensor.connect();
       } catch (err) {
-        alert(`Não foi possível conectar ao Arduino: ${err.message}`);
+        const message = err instanceof Error ? err.message : String(err);
+        if (!err || err.name !== "NotFoundError") {
+          alert(`Não foi possível conectar ao sensor Bluetooth: ${message}`);
+        }
       }
     });
   }
@@ -976,6 +1015,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReset.addEventListener('click', () => {
     analyzer.resetSession();
     sessionLogs = [];
+    sessionUsedBleSensor = bleSensor.isConnected;
     repTotal.textContent = "0";
     repCorrect.textContent = "0";
     repFaults.textContent = "0";
@@ -1058,7 +1098,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const repTTotal = document.getElementById('rep-t-total');
   const repTCorrect = document.getElementById('rep-t-correct');
   const repTFaults = document.getElementById('rep-t-faults');
+  const repTFaultsLabel = document.getElementById('rep-t-faults-label');
+  const repTFaultsTarget = document.getElementById('rep-t-faults-target');
+  const repTFaultsStatus = document.getElementById('rep-t-faults-status');
   const repTScore = document.getElementById('rep-t-score');
+  const repTScoreLabel = document.getElementById('rep-t-score-label');
+  const repTScoreTarget = document.getElementById('rep-t-score-target');
   const repTScoreStatus = document.getElementById('rep-t-score-status');
   const repClinicalText = document.getElementById('rep-clinical-text');
   const repSigTherapist = document.getElementById('rep-sig-therapist');
@@ -1193,10 +1238,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Conexão IoT rápida do Menu Inicial
-  if (btnHomeConnectBle && btnConnectArduino) {
+  if (btnHomeConnectBle && btnConnectSensor) {
     btnHomeConnectBle.addEventListener('click', (e) => {
       e.stopPropagation();
-      btnConnectArduino.click();
+      btnConnectSensor.click();
     });
   }
 
@@ -1230,21 +1275,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (repTTotal) repTTotal.textContent = totalReps + ' repetições';
     if (repTCorrect) repTCorrect.textContent = correctReps + ' repetições';
-    if (repTFaults) repTFaults.textContent = faultReps + ' repetições';
-    if (repTScore) repTScore.textContent = scorePercent + '%';
+    if (sessionUsedBleSensor) {
+      if (repTFaultsLabel) repTFaultsLabel.textContent = 'Postura e compensações';
+      if (repTFaults) repTFaults.textContent = 'Não avaliadas';
+      if (repTFaultsTarget) repTFaultsTarget.textContent = 'Não mensuradas pelo HM-06';
+      if (repTFaultsStatus) repTFaultsStatus.textContent = 'Não avaliado';
+      if (repTScoreLabel) repTScoreLabel.textContent = 'Eficácia biomecânica';
+      if (repTScore) repTScore.textContent = 'N/A';
+      if (repTScoreTarget) repTScoreTarget.textContent = 'Não avaliada pelo sensor';
+      if (repTScoreStatus) repTScoreStatus.textContent = 'Apenas amplitude angular';
+    } else {
+      if (repTFaultsLabel) repTFaultsLabel.textContent = 'Repetições com Desvio / Compensação';
+      if (repTFaults) repTFaults.textContent = faultReps + ' repetições';
+      if (repTFaultsTarget) repTFaultsTarget.textContent = '< 30% das repetições';
+      if (repTFaultsStatus) repTFaultsStatus.innerHTML = '<span class="r-status-ok">Controlado</span>';
+      if (repTScoreLabel) repTScoreLabel.textContent = 'Taxa de Eficácia Biomecânica';
+      if (repTScore) repTScore.textContent = scorePercent + '%';
+      if (repTScoreTarget) repTScoreTarget.textContent = 'Meta ≥ 80%';
 
-    if (repTScoreStatus) {
-      if (scorePercent >= 80) {
-        repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #ecfdf5; color: #059669;">Excelente (' + scorePercent + '%)</span>';
-      } else if (scorePercent >= 60) {
-        repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #fffbeb; color: #d97706;">Regular (' + scorePercent + '%)</span>';
-      } else {
-        repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #fef2f2; color: #dc2626;">Atenção Requerida (' + scorePercent + '%)</span>';
+      if (repTScoreStatus) {
+        if (scorePercent >= 80) {
+          repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #ecfdf5; color: #059669;">Excelente (' + scorePercent + '%)</span>';
+        } else if (scorePercent >= 60) {
+          repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #fffbeb; color: #d97706;">Regular (' + scorePercent + '%)</span>';
+        } else {
+          repTScoreStatus.innerHTML = '<span class="r-status-ok" style="background: #fef2f2; color: #dc2626;">Atenção Requerida (' + scorePercent + '%)</span>';
+        }
       }
     }
 
     if (repClinicalText) {
-      if (totalReps === 0) {
+      if (sessionUsedBleSensor) {
+        repClinicalText.textContent = totalReps === 0
+          ? 'Sessão monitorada pelo sensor Bluetooth HM-06. A avaliação fica limitada à amplitude angular e à contagem de ciclos; postura, alinhamento e compensações precisam ser avaliados separadamente.'
+          : 'As repetições foram contabilizadas ao completar o ciclo angular do sensor HM-06. Este sensor não mede alinhamento, postura ou compensações; esses aspectos não foram avaliados neste resultado.';
+      } else if (totalReps === 0) {
         repClinicalText.textContent = 'A sessão de atendimento foi inicializada. Aguardando a execução completa de repetições pelo paciente para consolidar a análise biomecânica e estabilidade articular.';
       } else if (scorePercent >= 80) {
         repClinicalText.textContent = 'O paciente demonstrou excelente controle motor e alinhamento biomecânico ao longo do protocolo ' + exName + '. Os parâmetros de amplitude angular e fixação postural mantiveram-se dentro da faixa terapêutica recomendada pela literatura.';

@@ -790,6 +790,81 @@ class TherapeuticExerciseAnalyzer {
     };
   }
 
+  processSensorAngle(angleDeg) {
+    const protocols = {
+      squat: { start: 155, target: 92, startDirection: "above", targetDirection: "below", targetRange: "78° a 92°" },
+      shoulder_abduction: { start: 150, target: 95, startDirection: "above", targetDirection: "below", targetRange: "85° a 95°" },
+      biceps_curl: { start: 140, target: 50, startDirection: "above", targetDirection: "below", targetRange: "35° a 50°" },
+      triceps_extension: { start: 95, target: 165, startDirection: "below", targetDirection: "above", targetRange: "165° a 180°" }
+    };
+    const protocol = protocols[this.currentExerciseKey] || protocols.squat;
+    const isAtThreshold = (value, threshold, direction) =>
+      direction === "above" ? value >= threshold : value <= threshold;
+    const isAtStart = isAtThreshold(angleDeg, protocol.start, protocol.startDirection);
+    const isAtTarget = isAtThreshold(angleDeg, protocol.target, protocol.targetDirection);
+    let repCompleted = false;
+
+    if (this.currentState === "standing" && !isAtStart) {
+      this.currentState = "eccentric";
+    } else if (this.currentState === "eccentric" && isAtTarget) {
+      this.currentState = "bottom_hold";
+    } else if (this.currentState === "eccentric" && isAtStart) {
+      this.currentState = "standing";
+    } else if (this.currentState === "bottom_hold" && !isAtTarget) {
+      this.currentState = "concentric";
+    } else if (this.currentState === "concentric" && isAtStart) {
+      this.currentState = "standing";
+      repCompleted = true;
+      this.totalReps++;
+      this.correctReps++;
+    }
+
+    const exerciseConfig = ExerciseLibrary[this.currentExerciseKey] || ExerciseLibrary.squat;
+    const inTargetRange = this.currentExerciseKey === "squat"
+      ? angleDeg >= 78 && angleDeg <= 92
+      : this.currentExerciseKey === "shoulder_abduction"
+        ? angleDeg >= 85 && angleDeg <= 95
+        : this.currentExerciseKey === "biceps_curl"
+          ? angleDeg >= 35 && angleDeg <= 50
+          : angleDeg >= 165 && angleDeg <= 180;
+    const feedback = repCompleted
+      ? "Repetição registrada por amplitude. O sensor não avalia alinhamento ou postura."
+      : inTargetRange
+        ? "Amplitude dentro da faixa-alvo. O sensor não avalia alinhamento ou postura."
+        : `Leitura do sensor: ${angleDeg.toFixed(1)}°. Faixa-alvo: ${protocol.targetRange}.`;
+
+    return {
+      timestamp: Date.now(),
+      frameId: ++this.frameCounter,
+      exercicio: exerciseConfig.name,
+      exerciseKey: this.currentExerciseKey,
+      targetJointName: exerciseConfig.targetJointName,
+      unit: exerciseConfig.unit,
+      targetRange: protocol.targetRange,
+      faseMovimento: this.currentState,
+      repeticoes: {
+        completas: this.totalReps,
+        corretas: this.correctReps,
+        comCompensacao: this.faultReps
+      },
+      angulosAtuais: {
+        principalDeg: angleDeg,
+        secundarioDeg: 0
+      },
+      qualidadeExecucao: {
+        status: inTargetRange ? "EXCELENTE" : "ATENÇÃO",
+        mensagemFeedback: feedback
+      },
+      distanceEval: {
+        status: "WAITING",
+        message: "Avaliação por ângulo BLE; alinhamento e postura não são verificados pelo sensor.",
+        code: 0
+      },
+      landmarksProcessed: null,
+      sensorTelemetry: true
+    };
+  }
+
   buildOutputData(timestamp, msg, landmarks, distanceEval) {
     const exerciseConfig = ExerciseLibrary[this.currentExerciseKey] || ExerciseLibrary.squat;
     return {
@@ -819,10 +894,15 @@ class TherapeuticExerciseAnalyzer {
     }
 
     return JSON.stringify({
-      status_execucao: data.qualidadeExecucao.status === "EXCELENTE" ? "Correto" : "Incorreto",
+      status_execucao: data.sensorTelemetry
+        ? data.qualidadeExecucao.status === "EXCELENTE" ? "Amplitude na faixa-alvo" : "Amplitude fora da faixa-alvo"
+        : data.qualidadeExecucao.status === "EXCELENTE" ? "Correto" : "Incorreto",
       feedback_paciente: data.qualidadeExecucao.mensagemFeedback,
       distancia_camera: data.distanceEval ? data.distanceEval.message : "Desconhecida",
       dados_camera_ativa: cameraName,
+      limites_avaliacao: data.sensorTelemetry
+        ? "Apenas amplitude angular; postura e compensações não avaliadas."
+        : undefined,
       telemetria_detalhada: {
         timestamp_ms: data.timestamp,
         frame_id: data.frameId,
@@ -850,4 +930,3 @@ window.ArduinoIoTBridge = ArduinoIoTBridge;
 window.ExerciseLibrary = ExerciseLibrary;
 window.TherapeuticExerciseAnalyzer = TherapeuticExerciseAnalyzer;
 window.TherapeuticSquatAnalyzer = TherapeuticSquatAnalyzer;
-

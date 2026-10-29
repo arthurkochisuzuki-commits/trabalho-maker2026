@@ -118,9 +118,9 @@
         </div>
 
         <!-- IoT Arduino BLE Connector -->
-        <button id="btn-connect-arduino" class="btn btn-sm btn-outline" title="Conectar ao Sensor Inercial via BLE / Web Serial">
+        <button id="btn-connect-sensor" class="btn btn-sm btn-outline" title="Procurar e conectar ao sensor Bluetooth BLE HM-06">
           <i data-lucide="bluetooth"></i>
-          <span class="btn-text">Sensor IoT (BLE)</span>
+          <span class="btn-text">Conectar sensor BLE</span>
         </button>
 
         <!-- Generate Medical Report Button -->
@@ -383,8 +383,8 @@
             <i data-lucide="bluetooth"></i>
           </div>
           <div class="device-info">
-            <strong>Sensor Inercial LeanStar (IoT)</strong>
-            <span>Goniômetro Digital BLE / Serial Arduino</span>
+            <strong>Sensor Bluetooth HM-06</strong>
+            <span>Leitura de ângulo por Bluetooth BLE</span>
           </div>
           <button id="btn-home-connect-ble" class="btn btn-xs btn-outline">Parear</button>
         </div>
@@ -746,15 +746,15 @@
                 <td id="rep-t-correct-status"><span class="r-status-ok">Adequado</span></td>
               </tr>
               <tr>
-                <td>Repetições com Desvio / Compensação</td>
+                <td id="rep-t-faults-label">Repetições com Desvio / Compensação</td>
                 <td id="rep-t-faults">0 reps</td>
-                <td>&lt; 30% das repetições</td>
+                <td id="rep-t-faults-target">&lt; 30% das repetições</td>
                 <td id="rep-t-faults-status"><span class="r-status-ok">Controlado</span></td>
               </tr>
               <tr>
-                <td>Taxa de Eficácia Biomecânica</td>
+                <td id="rep-t-score-label">Taxa de Eficácia Biomecânica</td>
                 <td id="rep-t-score">100%</td>
-                <td>Meta &ge; 80%</td>
+                <td id="rep-t-score-target">Meta &ge; 80%</td>
                 <td id="rep-t-score-status"><span class="r-status-ok">Excelente</span></td>
               </tr>
             </tbody>
@@ -811,6 +811,7 @@
 
   <!-- JavaScript Application Modules -->
   <script src="biomechanics.js"></script>
+  <script src="leanstar_ble.js"></script>
   <script src="app.js"></script>
   <script>
     // Initialize Lucide icons
