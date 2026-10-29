@@ -1021,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const brandLink = document.getElementById('brand-link');
   const navSessionBadge = document.getElementById('nav-session-badge');
   const startScreen = document.getElementById('start-screen');
-  const appContainer = document.querySelector('.app-container');
+  const appContainer = document.querySelector('.app-container:not(.start-screen)');
   const btnEnterApp = document.getElementById('btn-enter-app');
 
   if (btnEnterApp && startScreen && appContainer) {
